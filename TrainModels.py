@@ -6,7 +6,7 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.utils import check_random_state
 from torch.autograd import Variable
 import math
-from CreateData import Train_Data
+from CreateData import Train_Data, set_of_masks
 torch.set_printoptions(sci_mode=False)
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -17,7 +17,7 @@ dropout=0.2
 learning_rate = 0.002
 batch_size = 128
 vocab_size = 27
-max_iterations = 500
+max_iterations = 25
 
 class Head(nn.Module):
     """ one head of self-attention """
@@ -138,12 +138,27 @@ class TransformerHangman(nn.Module):
         logits = self.lm_head(x) # (B,T,vocab_size)
         return logits
 
-def train(model, criterion, train_loader, optimizer, epochs):
-    
+def random_masks(masks,num_masks):
+    block_size = masks[0].size()[1]
+    mask_seq = torch.zeros(num_masks,block_size,block_size)
+    rand_ints = torch.randint(masks.size()[0], (num_masks,))
+    for i in range(num_masks):
+        mask_seq[i,:,:] = masks[rand_ints[i]]
+    return mask_seq
+
+
+def train(model, criterion, train_loader, optimizer, epochs, block_size):
+    masks = set_of_masks(block_size)
+    masks = masks.to(device)
     for epoch in range(epochs):
         total = 0
         for x, y in train_loader:
             x,y = x.to(device),y.to(device)
+            x = torch.unsqueeze(x,1)
+            batch_mask = random_masks(masks,len(x))
+            batch_mask = batch_mask.to(device)
+            x = torch.matmul(x.float(),batch_mask)
+            x = torch.squeeze(x)
             optimizer.zero_grad()
             outputs = model(x)
             outputs = outputs.permute(0,2,1)
@@ -159,19 +174,20 @@ def load_dataset(file_name):
     dataset = pickle.load(file)
     return dataset
 
-def train_and_save_model(save_file,criterion,train_loader,max_iterations):
+def train_and_save_model(save_file,criterion,train_loader,max_iterations, block_size):
     model = TransformerHangman()
     model = model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    train(model,criterion,train_loader,optimizer,max_iterations)
+    train(model,criterion,train_loader,optimizer,max_iterations, block_size)
     with open(save_file, "wb") as file: pickle.dump(model, file)
     return
 
 def train_all_models(datasets,save_files):
     criterion = torch.nn.CrossEntropyLoss()  
     for i in range(len(datasets)):
-        train_loader = DataLoader(load_dataset(datasets[i]),batch_size,shuffle = True)
-        train_and_save_model(save_files[i],criterion,train_loader,max_iterations)
+        dataset = load_dataset(datasets[i])
+        train_loader = DataLoader(dataset,batch_size,shuffle = True)
+        train_and_save_model(save_files[i],criterion,train_loader,max_iterations, dataset.__block_size__())
     return
 
 if __name__ == '__main__':

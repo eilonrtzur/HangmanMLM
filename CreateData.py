@@ -74,17 +74,15 @@ class Train_Data(Dataset):
     def __init__(self, block_size,words, mode = None):
         data = encoding_data(length_filter(words,block_size,mode))
         N_s=len(data) - block_size
-        masks = set_of_masks(block_size)
-
-        self.x = torch.zeros(((2**block_size-1)*N_s, block_size))
-        self.y = torch.zeros(((2**block_size-1)*N_s, block_size))
+        self.x = torch.zeros((N_s, block_size))
+        self.y = torch.zeros((N_s, block_size))
         for i in range(N_s):
-            for j in range(2**block_size-1):
-                self.x[i*(2**block_size-1)+j,:] = torch.matmul(data[i],masks[j])
-                self.y[i*(2**block_size-1)+j,:] = data[i] #y[i,:] is of shape 1 x T
+            self.x[i,:] = data[i]
+            self.y[i,:] = data[i] #y[i,:] is of shape 1 x T
         self.x = Variable(self.x.type(torch.long))
         self.y = Variable(self.y.type(torch.long))
         self.len = N_s
+        self.block_size = block_size
 
     # Getter
     def __getitem__(self, index):    
@@ -93,6 +91,10 @@ class Train_Data(Dataset):
     # Get Length
     def __len__(self):
         return self.len
+
+    # Get block_size
+    def __block_size__(self):
+        return self.block_size
 
 # Creates and saves the dataset 
 def create_and_save_dataset(block_size, words, save_location, mode = None):
