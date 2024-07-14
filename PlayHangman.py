@@ -8,16 +8,7 @@ from torch.autograd import Variable
 from CreateData import Train_Data, encode_function
 from TrainModels import Head, MultiHeadAttention, Block, FeedFoward, PositionalEncoding, TransformerHangman
 
-
-torch.set_printoptions(sci_mode=False)
 np.set_printoptions(precision=2,suppress=True)
-n_embd = 32
-n_head = 4
-head_size = n_embd // n_head
-dropout= 0.2
-n_layer = 4
-learning_rate = 0.002
-batch_size = 128
 
 def decode_function():
     chars = [letter for letter in string.ascii_lowercase]
@@ -30,7 +21,6 @@ def load_models(save_files):
     models = []
     for save_file in save_files:
         file = open(save_file,"rb")
-        file.eval()
         models.append(pickle.load(file))
     return models
 
@@ -56,18 +46,17 @@ def remove_guessed(model_output,guessed_letters):
     return model_output
 
 # Generate predictions based off current status and previously guessed letters
-# weight should be a vector of length 5 representing [prefix, suffix, trigram, fourgram, specific length]
-def generate_prediction(models,guessed_letters,status, weight):
+def generate_prediction(models,guessed_letters,status, weights):
     encode = encode_function()
     decode = decode_function()
     guessed_letters = [encode(letter)[0] for letter in guessed_letters] # encode guessed letters to use later
     length = len(status)
     logits = [] # create a vector of logit outputs from individual component which can then be multiplied by weights
-    logits.append(remove_guessed(model_output(models[0], status[:3]),guessed_letters))
-    logits.append(remove_guessed(model_output(models[1], status[-3:]),guessed_letters))
-    for j in range(2,len(models)): # create a loop for n-gram models
-        logits.append(sum(remove_guessed(model_output(models[j],status[i:i+j+1]),guessed_letters) for i in range(length-(j+1)))/(length-(j+1)))
-    result = sum(weight[i]*logits[i] for i in range(len(logits)))
+    logits.append(remove_guessed(model_output(models[0].eval(), status[:3]),guessed_letters))
+    logits.append(remove_guessed(model_output(models[1].eval(), status[-3:]),guessed_letters))
+    for j in range(2,min(len(models),length)): # create a loop for n-gram models
+        logits.append(sum(remove_guessed(model_output(models[j].eval(),status[i:i+j+1]),guessed_letters) for i in range(length-j))/(length-j))
+    result = sum(weights[i]*logits[i] for i in range(len(logits)))
     prediction = (-result).argsort()
     prediction = prediction.tolist()
 
@@ -79,7 +68,7 @@ def update_word(status,word,letter):
     return new_status
 
 # this function simulates the entire game of hangman for the chosen word with component weights
-# if mode is not None, it will play the game and print statements for each guess
+# if mode is 'print', it will play the game and print statements for each guess
 def PlayHangman(word, weight = None, mode = None):
     if weight == None:
         weight = [1 for i in range(len(word))]
@@ -101,7 +90,7 @@ def PlayHangman(word, weight = None, mode = None):
                     component_success[i]+=1
                 
         else:
-            letter = generate_prediction(models,guessed_letters,status, weight, mode)
+            letter = generate_prediction(models,guessed_letters,status, weight)
         guessed_letters.append(letter)
         if letter in word:
             status = update_word(status,word,letter)
@@ -140,8 +129,8 @@ def WinRate(sample,weight = None):
 def create_sample(dictionary_file,sample_size):
     file = open(dictionary_file, "rb")
     words = pickle.load(file)
-    if sample_size < len(words):
-        print('Error: Sample size smaller than dictionary.')
+    if sample_size > len(words):
+        print('Error: Sample size larger than dictionary.')
         return
     sample = np.random.choice(words,sample_size)
     return sample
@@ -165,14 +154,17 @@ def create_sample(dictionary_file,sample_size):
 #         print(i,accuracy,current_weights) # can print this to see how it's updating
 #     return accuracy,current_weights
 
-
+# Running this script will prompt the user to enter either "game" or "win-rate". If "game" is entered, then it will ask for a word. If 
+# "win-rate" is entered, it will ask for a sample size. 
 if __name__ == '__main__':
     model_files = ['prefix_model.pkl', 'suffix_model.pkl', '3gram_model.pkl', '4gram_model.pkl', '5gram_model.pkl', '6gram_model.pkl', '7gram_model.pkl', '8gram_model.pkl']
     models = load_models(model_files)
-    response = input('Choose game or win-rate')
+    response = input('Choose game or win-rate: ')
     if response == 'game':
-        word = input('Choose a word!')
-        PlayHangman(word,'print')
+        word = input('Choose a word: ')
+        PlayHangman(word,None,'print')
     elif response == 'win-rate':
-        sample_size = input('How big a sample would you like?')
+        sample_size = int(input('How big a sample would you like? '))
         print('Your win rate is ',WinRate(create_sample('allwords.pkl',sample_size)))
+    else: 
+        print('That is not an option. Please choose type game or win-rate.')

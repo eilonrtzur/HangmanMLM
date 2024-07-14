@@ -6,7 +6,7 @@ from torch.autograd import Variable
 from itertools import product, combinations
 
 # Import Data
-full_dictionary_location = "words_250000_train.txt"
+full_dictionary_location = "wiki-100k.txt"
 
 # Create Dataset
 def build_dictionary(dictionary_file_location):

@@ -17,7 +17,7 @@ dropout=0.2
 learning_rate = 0.002
 batch_size = 128
 vocab_size = 27
-max_iterations = 25
+max_iterations = 200
 
 class Head(nn.Module):
     """ one head of self-attention """
@@ -193,4 +193,4 @@ def train_all_models(datasets,save_files):
 if __name__ == '__main__':
     datasets = ['prefix.pkl','suffix.pkl','3gram.pkl','4gram.pkl','5gram.pkl','6gram.pkl','7gram.pkl','8gram.pkl']
     save_files = [(datasets[i].split('.')[0] + '_model.pkl') for i in range(len(datasets))]
-    train_all_models(datasets, save_files)
+    #train_all_models(datasets, save_files)
