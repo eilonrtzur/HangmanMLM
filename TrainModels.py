@@ -1,4 +1,5 @@
 import pickle
+import os
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -31,7 +32,7 @@ class Head(nn.Module):
 
     def forward(self, x):
         # input of size (batch, time-step, channels)
-        # output of size (batch, time-step, head size)
+        # output of size (batch, time-step, head size (hs))
         # B,T,C = x.shape
         k = self.key(x)   # (B,T,hs)
         q = self.query(x) # (B,T,hs)
@@ -91,6 +92,7 @@ class Block(nn.Module):
         
         return x
 
+# fixed positional encoding instead of learned embedding
 class PositionalEncoding(nn.Module):
 
     def __init__(self, max_length):
@@ -111,7 +113,6 @@ class TransformerHangman(nn.Module):
 
     def __init__(self):
         super().__init__()
-        # each token directly reads off the logits for the next token from a lookup table
         self.token_embedding_table = nn.Embedding(vocab_size, n_embd)
         self.positional_encoding = PositionalEncoding(8)
         self.blocks = nn.Sequential(*[Block(n_embd, n_head) for _ in range(n_layer)])
@@ -138,6 +139,8 @@ class TransformerHangman(nn.Module):
         logits = self.lm_head(x) # (B,T,vocab_size)
         return logits
 
+# function generating a sequence of random masks to use for each batch in training
+# each word will get one random mask
 def random_masks(masks,num_masks):
     block_size = masks[0].size()[1]
     mask_seq = torch.zeros(num_masks,block_size,block_size)
@@ -169,19 +172,22 @@ def train(model, criterion, train_loader, optimizer, epochs, block_size):
         if epoch % 25 == 0:
             print('Epoch:', epoch, 'Loss:', total)
 
+# function to load datasets
 def load_dataset(file_name):
-    file = open(file_name, "rb")
+    file = open(os.path.join('datasets',file_name), "rb")
     dataset = pickle.load(file)
     return dataset
 
+# trains and saves a model
 def train_and_save_model(save_file,criterion,train_loader,max_iterations, block_size):
     model = TransformerHangman()
     model = model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     train(model,criterion,train_loader,optimizer,max_iterations, block_size)
-    with open(save_file, "wb") as file: pickle.dump(model, file)
+    with open(os.path.join('models', save_file), "wb") as file: pickle.dump(model, file)
     return
 
+# trains all models one by one
 def train_all_models(datasets,save_files):
     criterion = torch.nn.CrossEntropyLoss()  
     for i in range(len(datasets)):
@@ -192,5 +198,5 @@ def train_all_models(datasets,save_files):
 
 if __name__ == '__main__':
     datasets = ['prefix.pkl','suffix.pkl','3gram.pkl','4gram.pkl','5gram.pkl','6gram.pkl','7gram.pkl','8gram.pkl']
-    save_files = [(datasets[i].split('.')[0] + '_model.pkl') for i in range(len(datasets))]
-    #train_all_models(datasets, save_files)
+    save_files = [(datasets[i].split('.')[0] + '_model1.pkl') for i in range(len(datasets))]
+    train_all_models(datasets, save_files)
