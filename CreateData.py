@@ -1,4 +1,5 @@
 import string
+import os
 import pickle
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -78,7 +79,7 @@ class Train_Data(Dataset):
         self.y = torch.zeros((N_s, block_size))
         for i in range(N_s):
             self.x[i,:] = data[i]
-            self.y[i,:] = data[i] #y[i,:] is of shape 1 x T
+            self.y[i,:] = data[i] 
         self.x = Variable(self.x.type(torch.long))
         self.y = Variable(self.y.type(torch.long))
         self.len = N_s
@@ -99,7 +100,7 @@ class Train_Data(Dataset):
 # Creates and saves the dataset 
 def create_and_save_dataset(block_size, words, save_location, mode = None):
     dataset = Train_Data(block_size,words,mode)
-    with open(save_location, "wb") as file: pickle.dump(dataset, file)
+    with open(os.path.join('datasets', save_location), "wb") as file: pickle.dump(dataset, file)
     return
 
 # Creates datasets for prefix, suffix, and n-grams up to length 8
