@@ -1,4 +1,5 @@
 import string
+import os
 import pickle
 import numpy as np
 import torch
@@ -10,6 +11,7 @@ from TrainModels import Head, MultiHeadAttention, Block, FeedFoward, PositionalE
 
 np.set_printoptions(precision=2,suppress=True)
 
+# defines our decoding function, turning array of numbers back into string
 def decode_function():
     chars = [letter for letter in string.ascii_lowercase]
     chars.insert(0,'.')
@@ -17,10 +19,11 @@ def decode_function():
     decode = lambda l: ''.join([itos[i] for i in l]) # decoder: take a list of integers, output a string
     return decode
 
+# loads models
 def load_models(save_files):
     models = []
     for save_file in save_files:
-        file = open(save_file,"rb")
+        file = open(os.path.join('models', save_file),"rb")
         models.append(pickle.load(file))
     return models
 
@@ -38,6 +41,7 @@ def model_output(model, status):
     result[0]=0
     return result
 
+# sets probabilities of already guessed letters to 0 and re-normalizes and squares to emphasize confidence
 def remove_guessed(model_output,guessed_letters):
     for num in guessed_letters:
         model_output[num] = 0
@@ -126,6 +130,7 @@ def WinRate(sample,weight = None):
             games_won += 1
     return games_won/games_played
 
+# creates a random sample of words from dictionary file, is used to test win-rate. 
 def create_sample(dictionary_file,sample_size):
     file = open(dictionary_file, "rb")
     words = pickle.load(file)
@@ -134,25 +139,6 @@ def create_sample(dictionary_file,sample_size):
         return
     sample = np.random.choice(words,sample_size)
     return sample
-
-
-# # Naive random training of weights
-# def train_weights(sample_size,jump_size, iterations, w_0):
-    
-#     movements = abs(np.random.normal(0,jump_size,iterations)) # the size and direction of the adjustments 
-#     current_weights = w_0
-    
-#     for i in range(iterations):
-#         sample = np.random.choice(words[:5000],sample_size)
-#         global component_success
-#         component_success = np.zeros(len(initial_weights))
-#         accuracy = SuccessRate(sample,current_weights, 'weight_train')
-#         print(component_success)
-#         component_success = component_success / sum(component_success)
-#         current_weights = np.add(current_weights, movements[i]*component_success) # implement adjustments
-#         current_weights = current_weights/sum(current_weights)
-#         print(i,accuracy,current_weights) # can print this to see how it's updating
-#     return accuracy,current_weights
 
 # Running this script will prompt the user to enter either "game" or "win-rate". If "game" is entered, then it will ask for a word. If 
 # "win-rate" is entered, it will ask for a sample size. 
@@ -167,4 +153,4 @@ if __name__ == '__main__':
         sample_size = int(input('How big a sample would you like? '))
         print('Your win rate is ',WinRate(create_sample('allwords.pkl',sample_size)))
     else: 
-        print('That is not an option. Please choose type game or win-rate.')
+        print('That is not an option. Please choose type game or win-rate next time.')
