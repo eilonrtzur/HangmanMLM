@@ -4,7 +4,7 @@ import pickle
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torch.autograd import Variable
-from itertools import product, combinations
+
 
 # Import Data
 full_dictionary_location = "wiki-100k.txt"
@@ -59,15 +59,6 @@ def encoding_data(words):
     data = [encode(word) for word in words]
     data = torch.Tensor(data)
     return data
-
-# Generate masks to censor unkown letters in all possible positions
-# For example, if word status is _ _ l _ o, the mask will censor positions 0, 1, and 3
-def set_of_masks(dimension):
-    censors = torch.Tensor(list(product([0, 1],repeat=dimension)))
-    masks = torch.zeros((2**dimension,dimension,dimension))
-    for i in range(len(censors)):
-        masks[i,:,:] = torch.diag(censors[i,:])
-    return masks[:-1,:,:]
 
 # Defines dataset
 class Train_Data(Dataset): 
