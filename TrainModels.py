@@ -6,19 +6,21 @@ from torch.nn import functional as F
 from torch.utils.data import Dataset, DataLoader
 from sklearn.utils import check_random_state
 from torch.autograd import Variable
+from itertools import product
 import math
-from CreateData import Train_Data, set_of_masks
+from CreateData import Train_Data
+import time
 torch.set_printoptions(sci_mode=False)
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-n_embd = 32
-n_head = 4
-n_layer = 4
+n_embd = 64
+n_head = 8
+n_layer = 2
 dropout=0.2
 learning_rate = 0.002
 batch_size = 128
 vocab_size = 27
-max_iterations = 200
+max_iterations = 100
 
 class Head(nn.Module):
     """ one head of self-attention """
@@ -139,16 +141,21 @@ class TransformerHangman(nn.Module):
         logits = self.lm_head(x) # (B,T,vocab_size)
         return logits
 
+# Generate masks to censor unkown letters in all possible positions
+# For example, if word status is _ _ l _ o, the mask will censor positions 0, 1, and 3
+def set_of_masks(dimension):
+    masks = torch.Tensor(list(product([0, 1],repeat=dimension)))
+    return masks[:-1,:]
+
 # function generating a sequence of random masks to use for each batch in training
 # each word will get one random mask
 def random_masks(masks,num_masks):
-    block_size = masks[0].size()[1]
-    mask_seq = torch.zeros(num_masks,block_size,block_size)
+    block_size = masks[0].size()[0]
+    mask_seq = torch.zeros(num_masks,block_size)
     rand_ints = torch.randint(masks.size()[0], (num_masks,))
     for i in range(num_masks):
-        mask_seq[i,:,:] = masks[rand_ints[i]]
+        mask_seq[i,:] = masks[rand_ints[i]]
     return mask_seq
-
 
 def train(model, criterion, train_loader, optimizer, epochs, block_size):
     masks = set_of_masks(block_size)
@@ -157,11 +164,9 @@ def train(model, criterion, train_loader, optimizer, epochs, block_size):
         total = 0
         for x, y in train_loader:
             x,y = x.to(device),y.to(device)
-            x = torch.unsqueeze(x,1)
             batch_mask = random_masks(masks,len(x))
             batch_mask = batch_mask.to(device)
-            x = torch.matmul(x.float(),batch_mask)
-            x = torch.squeeze(x)
+            x = torch.mul(x.float(),batch_mask)
             optimizer.zero_grad()
             outputs = model(x)
             outputs = outputs.permute(0,2,1)
@@ -169,7 +174,7 @@ def train(model, criterion, train_loader, optimizer, epochs, block_size):
             loss.backward()
             optimizer.step()
             total+=loss.item() #cumulative loss
-        if epoch % 25 == 0:
+        if epoch % 10 == 0:
             print('Epoch:', epoch, 'Loss:', total)
 
 # function to load datasets
@@ -198,5 +203,5 @@ def train_all_models(datasets,save_files):
 
 if __name__ == '__main__':
     datasets = ['prefix.pkl','suffix.pkl','3gram.pkl','4gram.pkl','5gram.pkl','6gram.pkl','7gram.pkl','8gram.pkl']
-    save_files = [(datasets[i].split('.')[0] + '_model1.pkl') for i in range(len(datasets))]
+    save_files = [(datasets[i].split('.')[0] + '_model.pkl') for i in range(len(datasets))]
     train_all_models(datasets, save_files)
