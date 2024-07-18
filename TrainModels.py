@@ -8,8 +8,7 @@ from sklearn.utils import check_random_state
 from torch.autograd import Variable
 from itertools import product
 import math
-from CreateData import Train_Data
-import time
+from CreateData import TrainData
 torch.set_printoptions(sci_mode=False)
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -25,24 +24,20 @@ max_iterations = 100
 class Head(nn.Module):
     """ one head of self-attention """
 
-    def __init__(self, head_size):
+    def __init__(self, head_size: int):
         super().__init__()
         self.key = nn.Linear(n_embd, head_size, bias=False)
         self.query = nn.Linear(n_embd, head_size, bias=False)
         self.value = nn.Linear(n_embd, head_size, bias=False)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, x):
-        # input of size (batch, time-step, channels)
-        # output of size (batch, time-step, head size (hs))
+    def forward(self, x: torch.Tensor):
         # B,T,C = x.shape
         k = self.key(x)   # (B,T,hs)
         q = self.query(x) # (B,T,hs)
-        # compute attention scores ("affinities")
         wei = q @ k.transpose(-2,-1) * k.shape[-1]**-0.5 # (B, T, hs) @ (B, hs, T) -> (B, T, T)
         wei = F.softmax(wei, dim=-1) # (B, T, T)
         wei = self.dropout(wei)
-        # perform the weighted aggregation of the values
         v = self.value(x) # (B,T,hs)
         out = wei @ v # (B, T, T) @ (B, T, hs) -> (B, T, hs)
         return out
@@ -50,21 +45,21 @@ class Head(nn.Module):
 class MultiHeadAttention(nn.Module):
     """ multiple heads of self-attention in parallel """
 
-    def __init__(self, num_heads, head_size):
+    def __init__(self, num_heads: int, head_size: int):
         super().__init__()
         self.heads = nn.ModuleList([Head(head_size) for _ in range(num_heads)])
         self.proj = nn.Linear(head_size * num_heads, n_embd)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         out = torch.cat([h(x) for h in self.heads], dim=-1)
         out = self.dropout(self.proj(out))
         return out
 
 class FeedFoward(nn.Module):
-    """ a simple linear layer followed by a non-linearity """
+    """ expanding linear layer and a non-linearity followed by shrinking linear layer and dropout """
 
-    def __init__(self, n_embd):
+    def __init__(self, n_embd: int):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(n_embd, 4 * n_embd),
@@ -73,14 +68,13 @@ class FeedFoward(nn.Module):
             nn.Dropout(dropout),
         )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         return self.net(x)
 
 class Block(nn.Module):
     """ Transformer block: communication followed by computation """
 
-    def __init__(self, n_embd, n_head):
-        # n_embd: embedding dimension, n_head: the number of heads we'd like
+    def __init__(self, n_embd: int, n_head: int):
         super().__init__()
         head_size = n_embd // n_head
         self.sa = MultiHeadAttention(n_head, head_size)
@@ -88,16 +82,15 @@ class Block(nn.Module):
         self.ln1 = nn.LayerNorm(n_embd)
         self.ln2 = nn.LayerNorm(n_embd)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         x = x + self.sa(self.ln1(x))
         x = x + self.ffwd(self.ln2(x))
         
         return x
 
-# fixed positional encoding instead of learned embedding
 class PositionalEncoding(nn.Module):
-
-    def __init__(self, max_length):
+    """ Fixed positional encoding """
+    def __init__(self, max_length: int):
         super().__init__()
         self.dropout = nn.Dropout(p=dropout)
         position = torch.arange(max_length).unsqueeze(1)
@@ -107,12 +100,12 @@ class PositionalEncoding(nn.Module):
         pe[:, 1::2] = torch.cos(position * div_term)
         self.register_buffer('pe', pe)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         x = x + self.pe[:x.size(1)]
         return self.dropout(x)
     
 class TransformerHangman(nn.Module):
-
+    """ combine attention blocks, positional encoding and a final linear layer """
     def __init__(self):
         super().__init__()
         self.token_embedding_table = nn.Embedding(vocab_size, n_embd)
@@ -129,27 +122,24 @@ class TransformerHangman(nn.Module):
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def forward(self, idx, targets=None):
+    def forward(self, idx: torch.Tensor):
         # B, T = idx.shape
         idx = idx.type(torch.LongTensor)
-        idx = idx.to(device)
-        # idx and targets are both (B,T) tensor of integers
+        idx = idx.to(device) 
         tok_emb = self.token_embedding_table(idx) # (B,T,n_emb)
         x = self.positional_encoding(tok_emb)
         x = self.blocks(x) # (B,T,n_emb)
-        x = self.ln_f(x) # (B,T,n_emb)
+        x = self.ln_f(x) 
         logits = self.lm_head(x) # (B,T,vocab_size)
         return logits
 
-# Generate masks to censor unkown letters in all possible positions
-# For example, if word status is _ _ l _ o, the mask will censor positions 0, 1, and 3
-def set_of_masks(dimension):
+def set_of_masks(dimension: int) -> torch.Tensor:
+    """ generate a set of masking vectors to censor unknown letters in all possible positions """
     masks = torch.Tensor(list(product([0, 1],repeat=dimension)))
     return masks[:-1,:]
 
-# function generating a sequence of random masks to use for each batch in training
-# each word will get one random mask
-def random_masks(masks,num_masks):
+def random_masks(masks: torch.Tensor, num_masks: int) -> torch.Tensor:
+    """ Creates a sequence of num_masks random masks in bijection with a sequence of words """
     block_size = masks[0].size()[0]
     mask_seq = torch.zeros(num_masks,block_size)
     rand_ints = torch.randint(masks.size()[0], (num_masks,))
@@ -158,6 +148,7 @@ def random_masks(masks,num_masks):
     return mask_seq
 
 def train(model, criterion, train_loader, optimizer, epochs, block_size):
+    """ training loop with printed error every 10 epochs """
     masks = set_of_masks(block_size)
     masks = masks.to(device)
     for epoch in range(epochs):
@@ -177,14 +168,14 @@ def train(model, criterion, train_loader, optimizer, epochs, block_size):
         if epoch % 10 == 0:
             print('Epoch:', epoch, 'Loss:', total)
 
-# function to load datasets
-def load_dataset(file_name):
+def load_dataset(file_name: str):
+    """ function loading a dataset from the file name """
     file = open(os.path.join('datasets',file_name), "rb")
     dataset = pickle.load(file)
     return dataset
 
-# trains and saves a model
-def train_and_save_model(save_file,criterion,train_loader,max_iterations, block_size):
+def train_and_save_model(save_file, criterion, train_loader, max_iterations, block_size) -> None:
+    """ trains and saves a model """
     model = TransformerHangman()
     model = model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
@@ -192,8 +183,8 @@ def train_and_save_model(save_file,criterion,train_loader,max_iterations, block_
     with open(os.path.join('models', save_file), "wb") as file: pickle.dump(model, file)
     return
 
-# trains all models one by one
-def train_all_models(datasets,save_files):
+def train_all_models(datasets, save_files: list[str]) -> None:
+    """ trains and saves all models one by one """
     criterion = torch.nn.CrossEntropyLoss()  
     for i in range(len(datasets)):
         dataset = load_dataset(datasets[i])

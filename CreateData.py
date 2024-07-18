@@ -6,32 +6,43 @@ from torch.utils.data import Dataset, DataLoader
 from torch.autograd import Variable
 
 
-# Import Data
+
 full_dictionary_location = "wiki-100k.txt"
 
-# Create Dataset
-def build_dictionary(dictionary_file_location):
+def build_dictionary(dictionary_file_location: str) -> list[str]:
+    """
+    Takes in the desired dictionary file location and creates a list containing the individual words
+    """
     text_file = open(dictionary_file_location,"r")
     full_dictionary = text_file.read().lower().split()
     text_file.close()
     return full_dictionary
 
-# Only want to consider words of length at least 5
-def filter_dictionary(dictionary,length):
+def filter_dictionary(dictionary: list[str], min_size: int) -> list[str]:
+    """
+    Takes a list of words and removes words of length less than min_size
+    """
     new_dictionary = []
     for word in dictionary:
-        if len(word) >= length:
+        if len(word) >= min_size:
             new_dictionary.append(word)
     return new_dictionary
 
-# creates dictionary and saves it
-def create_and_save_dictionary(dictionary_file_location,length, save_location):
-    dictionary = filter_dictionary(build_dictionary(dictionary_file_location),length)
+def create_and_save_dictionary(dictionary_file_location: str, min_size: int, save_location: str) -> list[str]:
+    """
+    Creates and saves a dictionary of words of length at least min_size
+    """
+    dictionary = filter_dictionary(build_dictionary(dictionary_file_location),min_size)
     with open(save_location, "wb") as file: pickle.dump(dictionary, file)
     return dictionary
 
-# Filter for n-grams of length n which will be trained separately, mode can be specified to prefix or suffix
-def length_filter(dictionary,word_length = None, mode = None):
+def length_filter(dictionary: list[str], ngram_length: int = None, mode: str = None) -> list[str]:
+    """
+    If mode is prefix (suffix), takes a dictionary and creates a new list of all prefixes (suffixes) with repetitions.
+    If mode is not specified, creates a new list of all substrings of length ngram_length found in dictionary, with repetitions. 
+    """
+    if mode == None and ngram_length == None:
+        print('Error: Must specify word_length if mode is not specified')
     new_dictionary = []
     if mode == 'prefix':
         for word in dictionary:
@@ -41,30 +52,35 @@ def length_filter(dictionary,word_length = None, mode = None):
             new_dictionary.append(word[-3:])
     else:
         for word in dictionary:
-            if len(word)>= word_length:
-                for i in range(len(word)-word_length):
-                    new_dictionary.append(word[i:i+word_length])
+            if len(word)>= ngram_length:
+                for i in range(len(word)-ngram_length):
+                    new_dictionary.append(word[i:i+ngram_length])
     return new_dictionary
 
-# defines our function which changes strings to a list of integers
 def encode_function():
+    """
+    Defines an encode function which translates a string into a list of integers
+    """
     chars = [letter for letter in string.ascii_lowercase]
     chars.insert(0,'.')
     stoi = { ch:i for i,ch in enumerate(chars) }
     encode = lambda s: [stoi[c] for c in s] # encoder: take a string, output a list of integers
     return encode
 
-# encodes dictionary using encoder
-def encoding_data(words):
+def encoding_data(words: list[str]) -> torch.Tensor:
+    """
+    Encodes list of words as array of integer arrays
+    """
     data = [encode(word) for word in words]
     data = torch.Tensor(data)
     return data
 
-# Defines dataset
-class Train_Data(Dataset): 
+class TrainData(Dataset): 
+    """ Defines dataset class TrainData. Requires block_size and dictionary of words """
+
     # Constructor
-    def __init__(self, block_size,words, mode = None):
-        data = encoding_data(length_filter(words,block_size,mode))
+    def __init__(self, block_size: int, words: list[str]):
+        data = encoding_data(length_filter(words,block_size))
         N_s=len(data) - block_size
         self.x = torch.zeros((N_s, block_size))
         self.y = torch.zeros((N_s, block_size))
@@ -77,7 +93,7 @@ class Train_Data(Dataset):
         self.block_size = block_size
 
     # Getter
-    def __getitem__(self, index):    
+    def __getitem__(self, index: int):    
         return self.x[index],self.y[index]
     
     # Get Length
@@ -88,16 +104,20 @@ class Train_Data(Dataset):
     def __block_size__(self):
         return self.block_size
 
-# Creates and saves the dataset 
-def create_and_save_dataset(block_size, words, save_location, mode = None):
-    dataset = Train_Data(block_size,words,mode)
+def create_and_save_dataset(block_size: int, words: list[str], save_location: str) -> None:
+    """
+    Creates a saves a dataset given block size, dictionary of words, and save location
+    """
+    dataset = TrainData(block_size,words)
     with open(os.path.join('datasets', save_location), "wb") as file: pickle.dump(dataset, file)
     return
 
-# Creates datasets for prefix, suffix, and n-grams up to length 8
-def create_datasets():
-    create_and_save_dataset(3,words,'prefix.pkl','prefix')
-    create_and_save_dataset(3,words,'suffix.pkl','suffix')
+def create_datasets() -> None:
+    """
+    Creates and saves datasets for each of the different types
+    """
+    create_and_save_dataset(3,words,'prefix.pkl')
+    create_and_save_dataset(3,words,'suffix.pkl')
     create_and_save_dataset(3,words,'3gram.pkl')
     create_and_save_dataset(4,words,'4gram.pkl')
     create_and_save_dataset(5,words,'5gram.pkl')
