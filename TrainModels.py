@@ -147,7 +147,7 @@ def random_masks(masks: torch.Tensor, num_masks: int) -> torch.Tensor:
         mask_seq[i,:] = masks[rand_ints[i]]
     return mask_seq
 
-def train(model, criterion, train_loader, optimizer, epochs, block_size):
+def train(model: TransformerHangman, criterion: nn.Module, train_loader: DataLoader, optimizer: torch.optim.Optimizer, epochs: int, block_size: int) -> None:
     """ training loop with printed error every 10 epochs """
     masks = set_of_masks(block_size)
     masks = masks.to(device)
@@ -168,13 +168,13 @@ def train(model, criterion, train_loader, optimizer, epochs, block_size):
         if epoch % 10 == 0:
             print('Epoch:', epoch, 'Loss:', total)
 
-def load_dataset(file_name: str):
+def load_dataset(file_name: str) -> TrainData:
     """ function loading a dataset from the file name """
     file = open(os.path.join('datasets',file_name), "rb")
     dataset = pickle.load(file)
     return dataset
 
-def train_and_save_model(save_file, criterion, train_loader, max_iterations, block_size) -> None:
+def train_and_save_model(save_file: str, criterion: nn.Module, train_loader: DataLoader, max_iterations: int, block_size: int) -> None:
     """ trains and saves a model """
     model = TransformerHangman()
     model = model.to(device)
@@ -183,7 +183,7 @@ def train_and_save_model(save_file, criterion, train_loader, max_iterations, blo
     with open(os.path.join('models', save_file), "wb") as file: pickle.dump(model, file)
     return
 
-def train_all_models(datasets, save_files: list[str]) -> None:
+def train_all_models(datasets: list[TrainData], save_files: list[str]) -> None:
     """ trains and saves all models one by one """
     criterion = torch.nn.CrossEntropyLoss()  
     for i in range(len(datasets)):

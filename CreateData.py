@@ -2,10 +2,9 @@ import string
 import os
 import pickle
 import torch
+from typing import Callable
 from torch.utils.data import Dataset, DataLoader
 from torch.autograd import Variable
-
-
 
 full_dictionary_location = "wiki-100k.txt"
 
@@ -57,7 +56,7 @@ def length_filter(dictionary: list[str], ngram_length: int = None, mode: str = N
                     new_dictionary.append(word[i:i+ngram_length])
     return new_dictionary
 
-def encode_function():
+def encode_function() -> Callable[[str], list[int]]:
     """
     Defines an encode function which translates a string into a list of integers
     """
