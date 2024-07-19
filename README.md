@@ -17,6 +17,10 @@ The project consists of the following files and components:
 
 - **PlayHangman.py**: This file takes in the train models and allows you to fine-tune the combined model, play Hangman, and check it's success rate over a large sample of words.
 
+- **datasets**: This folder contains files with saved datasets which can be used for training. 
+
+- **models**: This folder contains models with slightly (100 iterations) trained models which can be used to play hangman and test accuracy. 
+
 - **words_250000_train.txt**: File containing 250,000 common English words (and some names). It's been filtered to only contain words of length at least 5, so probably fewer words now.  
 
 - **allwords.pkl**: A file containing a list of the words in the corpus of length at least 5, since any shorter words should be illegal in Hangman. 
