@@ -5,6 +5,7 @@ import torch
 from typing import Callable
 from torch.utils.data import Dataset, DataLoader
 from torch.autograd import Variable
+import numpy as np
 
 full_dictionary_location = "wiki-100k.txt"
 
@@ -49,6 +50,16 @@ def length_filter(dictionary: list[str], ngram_length: int = None, mode: str = N
     elif mode == 'suffix':
         for word in dictionary:
             new_dictionary.append(word[-3:])
+    elif mode == 'pad':
+        for word in dictionary:
+            if len(word) == ngram_length:
+                new_dictionary.append(word)
+            else:
+                for i in range(ngram_length - len(word)):
+                    word += '_'
+                new_dictionary.append(word)
+        new_dictionary = np.random.choice(new_dictionary,5000) #MoE runs slow so I wanted smaller sample
+
     else:
         for word in dictionary:
             if len(word)>= ngram_length:
@@ -62,6 +73,7 @@ def encode_function() -> Callable[[str], list[int]]:
     """
     chars = [letter for letter in string.ascii_lowercase]
     chars.insert(0,'.')
+    chars.insert(27,'_')
     stoi = { ch:i for i,ch in enumerate(chars) }
     encode = lambda s: [stoi[c] for c in s] # encoder: take a string, output a list of integers
     return encode
@@ -78,8 +90,8 @@ class TrainData(Dataset):
     """ Defines dataset class TrainData. Requires block_size and dictionary of words """
 
     # Constructor
-    def __init__(self, block_size: int, words: list[str]):
-        data = encoding_data(length_filter(words,block_size))
+    def __init__(self, block_size: int, words: list[str],mode: str = None):
+        data = encoding_data(length_filter(words,block_size,mode))
         N_s=len(data) - block_size
         self.x = torch.zeros((N_s, block_size))
         self.y = torch.zeros((N_s, block_size))
@@ -103,11 +115,11 @@ class TrainData(Dataset):
     def __block_size__(self):
         return self.block_size
 
-def create_and_save_dataset(block_size: int, words: list[str], save_location: str) -> None:
+def create_and_save_dataset(block_size: int, words: list[str], save_location: str, mode: str = None) -> None:
     """
     Creates a saves a dataset given block size, dictionary of words, and save location
     """
-    dataset = TrainData(block_size,words)
+    dataset = TrainData(block_size,words,mode)
     with open(os.path.join('datasets', save_location), "wb") as file: pickle.dump(dataset, file)
     return
 
@@ -115,14 +127,15 @@ def create_datasets() -> None:
     """
     Creates and saves datasets for each of the different types
     """
-    create_and_save_dataset(3,words,'prefix.pkl')
-    create_and_save_dataset(3,words,'suffix.pkl')
+    create_and_save_dataset(3,words,'prefix.pkl','prefix')
+    create_and_save_dataset(3,words,'suffix.pkl','suffix')
     create_and_save_dataset(3,words,'3gram.pkl')
     create_and_save_dataset(4,words,'4gram.pkl')
     create_and_save_dataset(5,words,'5gram.pkl')
     create_and_save_dataset(6,words,'6gram.pkl')
     create_and_save_dataset(7,words,'7gram.pkl')
     create_and_save_dataset(8,words,'8gram.pkl')
+    create_and_save_dataset(20,words,'padded_words.pkl','pad')
     return
 
 # executes if this file is main file
