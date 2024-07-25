@@ -10,6 +10,7 @@ from itertools import product
 from CreateData import TrainData
 from TrainModels import Head, MultiHeadAttention, Block, FeedFoward
 from TrainModels import PositionalEncoding, TransformerHangman, load_dataset
+import time
 
 torch.set_printoptions(sci_mode=False)
 
@@ -19,7 +20,7 @@ num_neurons = 16
 dropout=0.2
 learning_rate = 0.002
 batch_size = 128
-max_iterations = 100
+max_iterations = 200
 
 def load_models(save_files: list[str]) -> list[TransformerHangman]:
     """ loads trained models """
@@ -27,6 +28,9 @@ def load_models(save_files: list[str]) -> list[TransformerHangman]:
     for save_file in save_files:
         file = open(os.path.join('models', save_file),"rb")
         models.append(pickle.load(file))
+    for model in models:
+        for param in model.parameters():
+            param.requires_grad = False
     return models
 
 def length_of_batch_words(batched_words: torch.Tensor) -> list[int]:
@@ -109,13 +113,15 @@ def train(model: MoE, component_models: list[TransformerHangman],criterion: nn.M
     for epoch in range(epochs):
         total = 0
         for x, y in train_loader:
-            x,y = x.to(device),y.to(device)
+            #x,y = x.to(device),y.to(device)
             masks = batch_masks(length_of_batch_words(x))
-            masks.to(device)
+            #masks.to(device)
             x = torch.mul(x.float(),masks)
             optimizer.zero_grad()
             weights = model(x)
+            start = time.perf_counter()
             logits = models_outputs(component_models, x).to(device)
+            print(time.perf_counter()-start)
             weights = weights[:,None,None,:].expand(-1,20,-1,-1)
             outputs = torch.matmul(weights,logits).squeeze()
             outputs = outputs.permute(0,2,1)
@@ -123,7 +129,7 @@ def train(model: MoE, component_models: list[TransformerHangman],criterion: nn.M
             loss.backward()
             optimizer.step()
             total+=loss.item() #cumulative loss
-        if epoch % 10 == 0:
+        if epoch % 25 == 0:
             print('Epoch:', epoch, 'Loss:', total)
 
 def train_and_save_MoE(model_files: list[str], dataset_file: str, num_neurons: int, max_iter: int, save_file: str) -> None:
