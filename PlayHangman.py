@@ -70,7 +70,7 @@ def generate_prediction(models: list[TransformerHangman], moe_model: MoE, guesse
         logits.append(remove_guessed(torch.sum(torch.stack([model_output(models[j].eval(),status[i:i+j+1]) for i in range(length-j)]),dim=0),guessed_letters)/(length-j))  
     logits = torch.stack(logits)
     weights = moe_output(moe_model.eval(),status)[:logits.size(0)]
-    print(status, weights)
+    # print(status, weights)
     # weights = torch.ones(logits.size(0))
     result = torch.matmul(weights,logits)
     result = result.numpy()
@@ -130,6 +130,7 @@ def win_rate(sample: list[str]) -> float:
     for word in sample:
         if play_hangman(word)==1:
             games_won += 1
+        # else: print(word)
     return games_won/games_played
 
 def create_sample(dictionary_file: str, sample_size: int, seed: int = None) -> list[str]:
@@ -152,10 +153,12 @@ if __name__ == '__main__':
     Running this script will prompt the user to enter either "game" or "win-rate". If "game" is entered, then it will ask for a word. 
     If "win-rate" is entered, it will ask for a sample size. 
     """
+    datasets = ['prefix_20k.pkl','suffix_20k.pkl','3gram_20k.pkl','4gram_20k.pkl','5gram_20k.pkl','6gram_20k.pkl','7gram_20k.pkl','8gram_20k.pkl']
+    model_files = [(datasets[i].split('.')[0] + '_model_finetune.pkl') for i in range(len(datasets))]
 
-    model_files = ['prefix_model.pkl', 'suffix_model.pkl', '3gram_model.pkl', '4gram_model.pkl', '5gram_model.pkl', '6gram_model.pkl', '7gram_model.pkl', '8gram_model.pkl']
+    # model_files = ['prefix_model.pkl', 'suffix_model.pkl', '3gram_model.pkl', '4gram_model.pkl', '5gram_model.pkl', '6gram_model.pkl', '7gram_model.pkl', '8gram_model.pkl']
     models = load_models(model_files)
-    moe_model = load_MoE('MoE.pkl')
+    moe_model = load_MoE('MoE_20k.pkl')
     response = input('Choose game or win-rate: ')
     if response == 'game':
         word = input('Choose a word or type random please for a random word: ')
@@ -172,6 +175,6 @@ if __name__ == '__main__':
         if sample_size < 1:
             print('You entered an invalid sample size.')
         else:
-            print('Your win rate is ',win_rate(create_sample('allwords.pkl',sample_size,1)))
+            print('Your win rate is ',win_rate(create_sample('20k.pkl',sample_size,2)))
     else: 
         print('That is not an option. Please choose type game or win-rate next time.')

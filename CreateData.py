@@ -7,7 +7,7 @@ from torch.utils.data import Dataset, DataLoader
 from torch.autograd import Variable
 import numpy as np
 
-full_dictionary_location = "wiki-100k.txt"
+full_dictionary_location = "20k.txt"
 
 def build_dictionary(dictionary_file_location: str) -> list[str]:
     """
@@ -58,7 +58,7 @@ def length_filter(dictionary: list[str], ngram_length: int = None, mode: str = N
                 for i in range(ngram_length - len(word)):
                     word += '_'
                 new_dictionary.append(word)
-        new_dictionary = np.random.choice(new_dictionary,5000) #MoE runs slow so I wanted smaller sample
+        new_dictionary = np.random.choice(new_dictionary,2500) #MoE runs slow so I wanted smaller sample
 
     else:
         for word in dictionary:
@@ -127,20 +127,20 @@ def create_datasets() -> None:
     """
     Creates and saves datasets for each of the different types
     """
-    create_and_save_dataset(3,words,'prefix.pkl','prefix')
-    create_and_save_dataset(3,words,'suffix.pkl','suffix')
-    create_and_save_dataset(3,words,'3gram.pkl')
-    create_and_save_dataset(4,words,'4gram.pkl')
-    create_and_save_dataset(5,words,'5gram.pkl')
-    create_and_save_dataset(6,words,'6gram.pkl')
-    create_and_save_dataset(7,words,'7gram.pkl')
-    create_and_save_dataset(8,words,'8gram.pkl')
-    create_and_save_dataset(20,words,'padded_words.pkl','pad')
+    create_and_save_dataset(3,words,'prefix_20k.pkl','prefix')
+    create_and_save_dataset(3,words,'suffix_20k.pkl','suffix')
+    create_and_save_dataset(3,words,'3gram_20k.pkl')
+    create_and_save_dataset(4,words,'4gram_20k.pkl')
+    create_and_save_dataset(5,words,'5gram_20k.pkl')
+    create_and_save_dataset(6,words,'6gram_20k.pkl')
+    create_and_save_dataset(7,words,'7gram_20k.pkl')
+    create_and_save_dataset(8,words,'8gram_20k.pkl')
+    create_and_save_dataset(20,words,'padded_words_20k.pkl','pad')
     return
 
 # executes if this file is main file
 if __name__ == '__main__':
-    words = create_and_save_dictionary(full_dictionary_location,5,'allwords.pkl')
+    words = create_and_save_dictionary(full_dictionary_location,5,'20k.pkl')
     encode = encode_function()
     create_datasets()
     print('All done.')

@@ -174,25 +174,29 @@ def load_dataset(file_name: str) -> TrainData:
     dataset = pickle.load(file)
     return dataset
 
-def train_and_save_model(save_file: str, criterion: nn.Module, train_loader: DataLoader, max_iterations: int, block_size: int) -> None:
+def train_and_save_model(load_file: str, save_file: str, criterion: nn.Module, train_loader: DataLoader, max_iterations: int, block_size: int) -> None:
     """ trains and saves a model """
-    model = TransformerHangman()
+    file = open(os.path.join('models', load_file),"rb")
+    model = pickle.load(file)
+    model.train()
     model = model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     train(model,criterion,train_loader,optimizer,max_iterations, block_size)
     with open(os.path.join('models', save_file), "wb") as file: pickle.dump(model, file)
     return
 
-def train_all_models(datasets: list[TrainData], save_files: list[str]) -> None:
+def train_all_models(datasets: list[TrainData], load_files: list[str], save_files: list[str]) -> None:
     """ trains and saves all models one by one """
     criterion = torch.nn.CrossEntropyLoss()  
     for i in range(len(datasets)):
         dataset = load_dataset(datasets[i])
         train_loader = DataLoader(dataset,batch_size,shuffle = True)
-        train_and_save_model(save_files[i],criterion,train_loader,max_iterations, dataset.__block_size__())
+        train_and_save_model(load_files[i],save_files[i],criterion,train_loader,max_iterations, dataset.__block_size__())
     return
 
 if __name__ == '__main__':
-    datasets = ['prefix.pkl','suffix.pkl','3gram.pkl','4gram.pkl','5gram.pkl','6gram.pkl','7gram.pkl','8gram.pkl']
-    save_files = [(datasets[i].split('.')[0] + '_model.pkl') for i in range(len(datasets))]
-    train_all_models(datasets, save_files)
+    datasets = ['prefix_20k.pkl','suffix_20k.pkl','3gram_20k.pkl','4gram_20k.pkl','5gram_20k.pkl','6gram_20k.pkl','7gram_20k.pkl','8gram_20k.pkl']
+    old_datasets = ['prefix.pkl','suffix.pkl','3gram.pkl','4gram.pkl','5gram.pkl','6gram.pkl','7gram.pkl','8gram.pkl']
+    model_files = [(old_datasets[i].split('.')[0] + '_model.pkl') for i in range(len(datasets))]
+    save_files = [(datasets[i].split('.')[0] + '_model_finetune.pkl') for i in range(len(datasets))]
+    train_all_models(datasets, model_files, save_files)
