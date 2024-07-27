@@ -24,7 +24,7 @@ max_iterations = 200
 class Head(nn.Module):
     """ one head of self-attention """
 
-    def __init__(self, head_size: int):
+    def __init__(self, head_size: int, n_embd: int = 64, dropout: float = 0.2):
         super().__init__()
         self.key = nn.Linear(n_embd, head_size, bias=False)
         self.query = nn.Linear(n_embd, head_size, bias=False)
@@ -45,7 +45,7 @@ class Head(nn.Module):
 class MultiHeadAttention(nn.Module):
     """ multiple independent heads of self-attention """
 
-    def __init__(self, num_heads: int, head_size: int):
+    def __init__(self, head_size: int, num_heads: int = 8, n_embd: int = 64, dropout: float = 0.2):
         super().__init__()
         self.heads = nn.ModuleList([Head(head_size) for _ in range(num_heads)])
         self.proj = nn.Linear(head_size * num_heads, n_embd)
@@ -59,7 +59,7 @@ class MultiHeadAttention(nn.Module):
 class FeedFoward(nn.Module):
     """ expanding linear layer and a non-linearity followed by shrinking linear layer and dropout """
 
-    def __init__(self, n_embd: int):
+    def __init__(self, n_embd: int = 64, dropout: float = 0.2):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(n_embd, 4 * n_embd),
@@ -74,10 +74,10 @@ class FeedFoward(nn.Module):
 class Block(nn.Module):
     """ Transformer block: communication followed by computation """
 
-    def __init__(self, n_embd: int, n_head: int):
+    def __init__(self, n_embd: int = 64, n_head: int = 8):
         super().__init__()
         head_size = n_embd // n_head
-        self.sa = MultiHeadAttention(n_head, head_size)
+        self.sa = MultiHeadAttention( head_size, n_head)
         self.ffwd = FeedFoward(n_embd)
         self.ln1 = nn.LayerNorm(n_embd)
         self.ln2 = nn.LayerNorm(n_embd)
@@ -90,9 +90,9 @@ class Block(nn.Module):
 
 class PositionalEncoding(nn.Module):
     """ Fixed positional encoding """
-    def __init__(self, max_length: int):
+    def __init__(self, max_length: int, n_embd: int = 64, dropout: float = 0.2):
         super().__init__()
-        self.dropout = nn.Dropout(p=dropout)
+        self.dropout = nn.Dropout(dropout)
         position = torch.arange(max_length).unsqueeze(1)
         div_term = torch.exp(torch.arange(0, n_embd, 2) * (-math.log(1000) / n_embd))
         pe = torch.zeros(max_length, n_embd)
@@ -106,10 +106,10 @@ class PositionalEncoding(nn.Module):
     
 class TransformerHangman(nn.Module):
     """ combine attention blocks, positional encoding and a final linear layer """
-    def __init__(self):
+    def __init__(self, vocab_size: int = 27, n_embd: int = 64, max_length: int = 8, n_head: int = 8, n_layer: int = 2):
         super().__init__()
         self.token_embedding_table = nn.Embedding(vocab_size, n_embd)
-        self.positional_encoding = PositionalEncoding(8)
+        self.positional_encoding = PositionalEncoding(max_length)
         self.blocks = nn.Sequential(*[Block(n_embd, n_head) for _ in range(n_layer)])
         self.ln_f = nn.LayerNorm(n_embd) # final layer norm
         self.lm_head = nn.Linear(n_embd, vocab_size)
@@ -189,5 +189,4 @@ def train_all_models(datasets: list[TrainData], save_files: list[str]) -> None:
 if __name__ == '__main__':
     datasets = ['prefix.pkl','suffix.pkl','3gram.pkl','4gram.pkl','5gram.pkl','6gram.pkl','7gram.pkl','8gram.pkl']
     save_files = [dataset.split('.')[0] + '_model.pkl' for dataset in datasets]
-
     train_all_models(datasets, save_files)

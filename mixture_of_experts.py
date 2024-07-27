@@ -55,13 +55,10 @@ def feed_model(model: TransformerHangman, model_block_size: int, batched_encoded
             continue  
         else:
             if mode == 'prefix':
-                # output_tensor[i,3:,:] = float('-inf')
                 output_tensor[i,:3,:-1] += torch.squeeze(model(batched_encoded_words[i,:,:3]))
             elif mode == 'suffix':
-                # output_tensor[i,:,:] = float('-inf')
                 output_tensor[i,length_of_words[i]-3:length_of_words[i],:-1] += torch.squeeze(model(batched_encoded_words[i,:,length_of_words[i]-3:length_of_words[i]]))
             else:
-                # output_tensor[i,length_of_words[i]:,:] = float('-inf')
                 for j in range(length_of_words[i] - model_block_size + 1):
                     output_tensor[i,j:j+model_block_size,:-1] += torch.squeeze(model(batched_encoded_words[i,:,j:j+model_block_size]))
                 for k in range(length_of_words[i]):
@@ -83,16 +80,16 @@ def batch_masks(length_of_words: list[int]) -> list[torch.Tensor]:
 def models_outputs(models: list[TransformerHangman], x: torch.Tensor) -> torch.Tensor:
     """ evaluates all component models and combines into one tensor """
     logits = []
-    logits.append(feed_model(models[0].eval(),3,x,'prefix'))
-    logits.append(feed_model(models[1].eval(),3,x,'suffix'))
+    logits.append(feed_model(models[0],3,x,'prefix'))
+    logits.append(feed_model(models[1],3,x,'suffix'))
     for i in range(2,8):
-        logits.append(feed_model(models[i].eval(),i+1,x))
+        logits.append(feed_model(models[i],i+1,x))
     logits = torch.stack(logits, dim = 2)
     return logits
 
 class Head_MoE(nn.Module):
     """ one head of MoE corresponding to a specific position in word """
-    def __init__(self, num_neurons: int, num_components: int):
+    def __init__(self, num_neurons: int = 16, num_components: int = 8, pad_size : int = 20, dropout: float = 0.2):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(pad_size, num_neurons),
@@ -108,9 +105,9 @@ class Head_MoE(nn.Module):
 
 class MoE(nn.Module):
     """ very basic Mixture of Experts by stacking individual MoE heads """
-    def __init__(self, num_neurons: int, num_components: int):
+    def __init__(self, num_neurons: int = 16, num_components: int = 8, pad_size : int = 20, dropout: float = 0.2):
         super().__init__()
-        self.heads = nn.ModuleList([Head_MoE(num_neurons,num_components) for _ in range(pad_size)])
+        self.heads = nn.ModuleList([Head_MoE(num_neurons, num_components, pad_size, dropout) for _ in range(pad_size)])
         self.dropout = nn.Dropout(dropout)
        
     def forward(self, x: torch.Tensor):
@@ -141,7 +138,7 @@ def train(model: MoE, component_models: list[TransformerHangman],criterion: nn.M
 
 def train_and_save_MoE(model_files: list[str], dataset_file: str, num_neurons: int, max_iter: int, save_file: str) -> None:
     """ trains and saves the MoE """
-    model = MoE(num_neurons, len(model_files))
+    model = MoE(num_neurons, len(model_files), pad_size, dropout)
     model = model.to(device)
     component_models = load_models(model_files)
     criterion = torch.nn.CrossEntropyLoss(ignore_index=0)
