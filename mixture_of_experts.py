@@ -47,6 +47,7 @@ def length_of_batch_words(batched_words: torch.Tensor) -> list[int]:
 def feed_model(model: TransformerHangman, model_block_size: int, batched_encoded_words: torch.Tensor, mode: str | None = None) -> torch.Tensor:
     """ evaluates component model on padded word, outputs logits for each position """
     model.eval()
+    model = model.to(device)
     length_of_words = length_of_batch_words(batched_encoded_words)
     output_tensor = torch.zeros(batched_encoded_words.size(0),batched_encoded_words.size(1),28)
     batched_encoded_words = torch.unsqueeze(batched_encoded_words,1)
@@ -120,11 +121,13 @@ def train(model: MoE, component_models: list[TransformerHangman],criterion: nn.M
     for epoch in range(epochs):
         total = 0
         for x, y in train_loader:
+            x, y = x.to(device), y.to(device)
             masks, reverse_masks = batch_masks(length_of_batch_words(x)) 
+            masks, reverse_masks = masks.to(device), reverse_masks.to(device)
             x = torch.mul(x.float(),masks)
             optimizer.zero_grad()
             weights = model(x)
-            logits = models_outputs(component_models, x)
+            logits = models_outputs(component_models, x).to(device)
             weights = weights[:,:,None,:]
             outputs = torch.matmul(weights,logits).squeeze()
             outputs = outputs.permute(0,2,1)

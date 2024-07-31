@@ -149,7 +149,7 @@ def train(model: TransformerHangman, criterion: nn.Module, train_loader: DataLoa
         for x, y in train_loader:
             x,y = x.to(device),y.to(device)
             batch_mask, reverse_mask = set_of_masks(x.size(0),x.size(1))
-            batch_mask = batch_mask.to(device)
+            batch_mask, reverse_mask = batch_mask.to(device), reverse_mask.to(device)
             x = torch.mul(x.float(),batch_mask)
             y = torch.mul(y,reverse_mask).long()
             optimizer.zero_grad()
